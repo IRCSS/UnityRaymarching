@@ -7,6 +7,7 @@ public class SetUpShaderGlobals : MonoBehaviour {
     public Texture Bluenoise;
     public Texture DebugTexture;
     public Color colorone, colortwo;
+    public Light l;
 	// Use this for initialization
 	void Start () {
         Shader.SetGlobalTexture("_BlueNoise", Bluenoise);
@@ -18,6 +19,7 @@ public class SetUpShaderGlobals : MonoBehaviour {
     {
         Shader.SetGlobalColor("ColorOne", colorone);
         Shader.SetGlobalColor("ColorTwo", colortwo);
+        Shader.SetGlobalVector("_LightDrection", l.transform.forward);
     }
 
 }

@@ -18,9 +18,6 @@ Shader "Unlit/Raymarcher"
 
 			Cull Back
 			
-			ZTest Always
-			Blend One Zero
-
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
@@ -61,6 +58,8 @@ Shader "Unlit/Raymarcher"
 			static const float PI = 3.141592;
 			static const float Epsilon = 0.00001;
 			static const float3 Fdielectric = 0.04;
+			float3 _LightDrection;						// The _WorldSpaceLightPos0 is sometimes not set currectly so I am passing this from script
+
 
 			// material properties
 			float roughness = 0.1;
@@ -201,7 +200,7 @@ Shader "Unlit/Raymarcher"
 				return o;
 			}
 
-			fixed4 frag (v2f i) : SV_Target
+			void frag (v2f i, out half4 color:SV_Target, out float depth : SV_Depth) 
 			{
 				fixed4 col;
 
@@ -236,7 +235,7 @@ Shader "Unlit/Raymarcher"
 					float cosLo = max(0.0, dot(normal, Lo));
 					float3 Lr = 2.0 * cosLo * normal - Lo;
 					
-					float3 Li = -_WorldSpaceLightPos0;							// Light direction. In unity with directional light this is the parameter that holds it
+					float3 Li = -_LightDrection;							// Light direction. _WorldSpaceLightPos0 is sometimes not set currectly so I am using a costume one
 					float3 Lh = normalize(Li + Lo);								// Half-vector between Lo. useful optimization for several lights
 
 					float cosLi = max(0.0, dot(normal, Li));					// Calculate angles between surface normal and various light vectors.
@@ -253,7 +252,8 @@ Shader "Unlit/Raymarcher"
 					float3 kd = lerp(float3(1, 1, 1) - F, float3(0, 0, 0), metalness);
 
 					float3 diffuseBRDF = kd * col.xyz*depth;						// Cook-Torrance specular microfacet BRDF.
-					float3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
+					float3 specularBRDF = (F * D * G) / 
+						max(Epsilon, 4.0 * cosLi * cosLo);
 
 					col.xyz += (diffuseBRDF + specularBRDF) * 2. * cosLi;			// add lighting. Hard coded light intesity, light is white
 					//-----------------------------------------------------------
@@ -275,7 +275,17 @@ Shader "Unlit/Raymarcher"
 					discard;
 				}
 
-				return col;
+
+
+				// ==================================================================
+				// Updating Z-Buffer. Keep in mind this is not supported in all APIs (OpenGL ES), not quite sure what Unity compiles for 
+				// those platform. Also it is a slow processs to write back to depth buffer. Also below dx11 there are difference in Semantics. 
+				float4 pInScreenSpace = mul(UNITY_MATRIX_VP, float4(outS.p.xyz, 1.));
+				depth = pInScreenSpace.z / pInScreenSpace.w;
+				// ==================================================================
+				color = col;
+
+				return;
 			}
 			ENDCG
 		}

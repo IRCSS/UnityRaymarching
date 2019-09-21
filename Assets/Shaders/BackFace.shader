@@ -8,8 +8,8 @@
 	{
 		Tags { "RenderType"="Opaque" }
 		LOD 100
-		ZWrite On
-		ZTest Always
+		//ZWrite On
+		//ZTest Always
 		// --------------------------------------------------------------------------------------------------------------------------------
 		// DEPTH PASS. This renderes the backside of the mesh only. Also it only renders to the depth buffer.
 
