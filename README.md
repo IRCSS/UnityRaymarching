@@ -1,7 +1,6 @@
-Pointclouds rendering in Unity with compute shaders
+Raymarching in Unity
 =================
 
-This repo contains a compute shader which with the help of some C# scripts spawns particles on the vertices of the meshes. You can use this for point cloudrendering
-For more info have a look at this post: https://medium.com/@shahriyarshahrabi/point-cloud-rendering-7bd83c6220c8
+This repo contains experimetns that raymarch a volume in Unity. For more explanation, have alook at this post: https://medium.com/@shahriyarshahrabi/raymarching-in-unity-59c72664252a
 
-![screenshot](https://i.imgur.com/BxKnx6C.gif)
+![screenshot](https://i.imgur.com/jl0OTh8.gif)
