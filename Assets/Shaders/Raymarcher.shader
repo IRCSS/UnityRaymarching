@@ -1,4 +1,8 @@
-﻿// ===================================================================================================================
+﻿// Upgrade NOTE: replaced '_LightMatrix0' with 'unity_WorldToLight'
+
+// Upgrade NOTE: replaced '_LightMatrix0' with 'unity_WorldToLight'
+
+// ===================================================================================================================
 // Raymarching shader. The shader uses code from two sources. One articles by iq https://www.iquilezles.org/www/articles/terrainmarching/terrainmarching.htm
 // Another source is for the PBR lighting, the lighting is abit of an over kills, https://github.com/Nadrin/PBR/blob/master/data/shaders/hlsl/pbr.hlsl
 // ===================================================================================================================
@@ -13,8 +17,9 @@ Shader "Unlit/Raymarcher"
 		// Main Pass. 
 		Pass
 		{
-			Tags{ "RenderType" = "Opaque"  "Queue" = "Geometry +10" }
+			Tags{ "RenderType" = "Opaque"  "Queue" = "Geometry +10" "LightMode" = "ForwardBase" }
 			LOD 100
+
 
 			Cull Back
 			
@@ -22,7 +27,8 @@ Shader "Unlit/Raymarcher"
 			#pragma vertex vert
 			#pragma fragment frag
 			#include "UnityCG.cginc"
-
+			#include "Lighting.cginc"
+			#include "AutoLight.cginc"
 			//--------------------------------------------
 				// Definitions
 			
@@ -50,7 +56,7 @@ Shader "Unlit/Raymarcher"
 			// samplers
 			sampler2D_float _BackFaceRender;			// texture from the command buffer pass rendering the back faces 
 			sampler2D _BlueNoise;						// blue noise used to break percision banding
-
+			sampler2D m_ShadowmapCopy;
 			
 			float3 ColorOne; float3 ColorTwo;			// the two colors used to control the albedo
 
@@ -59,11 +65,12 @@ Shader "Unlit/Raymarcher"
 			static const float Epsilon = 0.00001;
 			static const float3 Fdielectric = 0.04;
 			float3 _LightDrection;						// The _WorldSpaceLightPos0 is sometimes not set currectly so I am passing this from script
-
+			float3 _LightDrectionRight;
+			float3 _LightDrectionUp;
 
 			// material properties
-			float roughness = 0.1;
-			float metalness = 0.01;
+			float roughness = 0.;
+			float metalness = 0.;
 	
 			// wave constants
 			static const float2 _WaveOrigin = float2(0., 0.);		// value used as the origin of the waves. 
@@ -72,7 +79,6 @@ Shader "Unlit/Raymarcher"
 			static const float averageAmplitude = 0.2;
 			static const float numberOfWaves = 16.;
 			
-
 			// ===================================================================================================================
 			// HELPER FUNCTIONS ----------------------------------------------
 
@@ -131,9 +137,9 @@ Shader "Unlit/Raymarcher"
 
 			// ray casting ----------------------------------------------------------
 
-			bool castRay(const ray InRay, out rOut outS)
-			{
-				float dt = 0.01f;													// temp value holding the progression through the march
+			bool castRay(const ray InRay, out rOut outS, float dta)			// dt value holding the progression through the march
+			{													
+				float dt = dta;
 				const float mint = InRay.minmumT;									// the starting point of the ray is the pixel depth of the meshes front face
 				const float maxt =  InRay.maximumT;									// the end point of the ray is the pixel depth of the meshes back face. 
 				float lh = 0.0f;													// these two values are used to interpolate between the dt where the function
@@ -159,7 +165,7 @@ Shader "Unlit/Raymarcher"
 					}
 
 					
-					dt = 0.01f*t;													// allow the error to be proportinal to the distance. Further away from the camera we can tolerate higher error
+					dt = dta *t;													// allow the error to be proportinal to the distance. Further away from the camera we can tolerate higher error
 					lh = h;
 					ly = p.y;
 				}
@@ -187,6 +193,17 @@ Shader "Unlit/Raymarcher"
 				return r;
 			}
 
+			// used to generate the ray for self shadowing in raymarched surfaces. This sends a ray back from it point in the direction
+			// of the light
+			ray GenerateShadowRay(const float3 lightDir, const float3 start, const float3 surfaceNormal, const float offset, const float end) {
+				ray r;
+				r.direction = lightDir;
+				r.origin = start + lightDir * offset;
+				r.minmumT = 0.0;
+				r.maximumT = end;
+				return r;
+			}
+
 			// ===================================================================================================================
 			// VERTEX FRAGMENT SHADER
 
@@ -208,16 +225,25 @@ Shader "Unlit/Raymarcher"
 				// ---------------------------------------------------------------						
 				float2 screenUV = i.screenPos.xy / i.screenPos.w;
 				float backFaceDepth = tex2D(_BackFaceRender, screenUV);								// reading the depth value of back face. This will be the end point of our marche				
-				float blueNoise = tex2D(_BlueNoise, screenUV*4.);
+				float blueNoise = tex2D(_BlueNoise, screenUV*12.);
 				blueNoise = frac(blueNoise + 0.61803398875 * float(_Time.y % 16));
 				// ---------------------------------------------------------------
 			
+				// Shadow Coordinates setup for directional light
+				// ----------------------------------------------------------------
+				/*float4 shadowCoord = mul(unity_WorldToShadow[0], float4(i.worldPos.xyz,1.)); // STILL NOT FINISHED
+				color.xy = shadowCoord.xy;
+				return;
+				float shadowmask = tex2D(m_ShadowmapCopy, shadowCoord).b;
+				color = shadowmask.xxxx;
+				return;*/
+				// ----------------------------------------------------------------
 
-				ray r = GenerateRay(_WorldSpaceCameraPos, i.worldPos, blueNoise*0.2, backFaceDepth);
+				ray r = GenerateRay(_WorldSpaceCameraPos, i.worldPos, blueNoise*0.4, backFaceDepth);
 				rOut outS;
 			
 				// Raymarch
-				if (castRay(r, outS))												// has hit the surface, shade
+				if (castRay(r, outS, 0.01))												// has hit the surface, shade
 				{
 					//Setting up base albedo color
 					// ---------------------------------------------------------
@@ -235,7 +261,7 @@ Shader "Unlit/Raymarcher"
 					float cosLo = max(0.0, dot(normal, Lo));
 					float3 Lr = 2.0 * cosLo * normal - Lo;
 					
-					float3 Li = -_LightDrection;							// Light direction. _WorldSpaceLightPos0 is sometimes not set currectly so I am using a costume one
+					float3 Li = -_LightDrection;								// Light direction. _WorldSpaceLightPos0 is sometimes not set currectly so I am using a costume one
 					float3 Lh = normalize(Li + Lo);								// Half-vector between Lo. useful optimization for several lights
 
 					float cosLi = max(0.0, dot(normal, Li));					// Calculate angles between surface normal and various light vectors.
@@ -258,16 +284,35 @@ Shader "Unlit/Raymarcher"
 					col.xyz += (diffuseBRDF + specularBRDF) * 2. * cosLi;			// add lighting. Hard coded light intesity, light is white
 					//-----------------------------------------------------------
 
-					/*
+						
 					// Shadow Casting. STILL NOT WORKING, UNCOMMENT AT YOUR OWN RISK
 					//-----------------------------------------------------------
-					ray rShadow = GenerateRay(outS.p, outS.p+ -Li,					// Generate a ray back from the hit position in the direction of the light
-						blueNoise*0.0 - 1. , 100.);									// p + i is the ray startig point, Li has a length one so displace it back with -1 along Li to start at p (lazy I know, didnt want to change the method)
+					ray rShadow = GenerateShadowRay(Li, outS.p, normal,					// Generate a ray back from the hit position in the direction of the light
+						 0.8, 10.);														// p + i is the ray startig point, Li has a length one so displace it back with -1 along Li to start at p (lazy I know, didnt want to change the method)
 					rOut outShadow;
-					float s = (float)castRay(rShadow, outShadow);					// if a hit (true -> s=1) it is in shadow
-					col.xyz *= max(0.1,s);											// I have no ambient lighting term, so I am maxing with 0.4 to avoid a Film Noir look 
-					//----------------------------------------------------------- */
+					float tapDevation = 0.9	;
+					float dt = 0.1;
+					float s = (float)castRay(rShadow, outShadow, dt);					// if a hit (true -> s=1) it is in shadow
+					
+					rShadow.direction = lerp(_LightDrectionRight, Li, tapDevation);
+					GenerateShadowRay(Li, outS.p, rShadow.direction, 0.7, 10.);
+					s+= (float)castRay(rShadow, outShadow, dt);
+					
+					rShadow.direction = lerp(-_LightDrectionRight, Li, tapDevation);
+					GenerateShadowRay(Li, outS.p, rShadow.direction, 0.9, 10.);
+					s += (float)castRay(rShadow, outShadow, dt);
 
+					rShadow.direction = lerp(_LightDrectionUp, Li, tapDevation);
+					GenerateShadowRay(Li, outS.p, rShadow.direction, 0.75, 10.);
+					s += (float)castRay(rShadow, outShadow, dt);
+
+					rShadow.direction = lerp(-_LightDrectionUp, Li, tapDevation);
+					GenerateShadowRay(Li, outS.p, rShadow.direction, 0.6, 10.);
+					s += (float)castRay(rShadow, outShadow, dt);
+
+					col.xyz *= max(0.5 + F,1.-(s/5.));									// I have no ambient lighting term, so I am maxing with 0.4 to avoid a Film Noir look 
+					//----------------------------------------------------------- 
+				
 
 				}
 				else																// didn't hit the surface, draw the sky box. In unity's pipeline this means just discard the fragment									
@@ -284,7 +329,7 @@ Shader "Unlit/Raymarcher"
 				depth = pInScreenSpace.z / pInScreenSpace.w;
 				// ==================================================================
 				color = col;
-
+				
 				return;
 			}
 			ENDCG

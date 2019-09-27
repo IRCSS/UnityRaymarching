@@ -19,7 +19,9 @@ public class SetUpShaderGlobals : MonoBehaviour {
     {
         Shader.SetGlobalColor("ColorOne", colorone);
         Shader.SetGlobalColor("ColorTwo", colortwo);
-        Shader.SetGlobalVector("_LightDrection", l.transform.forward);
+        Shader.SetGlobalVector("_LightDrection", l.transform.forward.normalized);
+        Shader.SetGlobalVector("_LightDrectionRight", l.transform.right.normalized);
+        Shader.SetGlobalVector("_LightDrectionUp", l.transform.up.normalized);
     }
 
 }
