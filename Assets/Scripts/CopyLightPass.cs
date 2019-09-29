@@ -8,7 +8,7 @@ public class CopyLightPass : MonoBehaviour {
     
         CommandBuffer cb = null;
         public RenderTexture m_ShadowmapCopy;
-        public Texture debugTexture;
+
 
     void OnEnable()
         {
@@ -30,13 +30,13 @@ public class CopyLightPass : MonoBehaviour {
         cb.Blit(shadowmap, id);
 
       
-        cb.SetGlobalTexture("m_ShadowmapCopy", debugTexture);
+        cb.SetGlobalTexture("m_ShadowmapCopy", id);
 
         Light m_Light = this.GetComponent<Light>();
         // Execute after the shadowmap has been filled.
         m_Light.AddCommandBuffer(LightEvent.AfterShadowMap, cb);
 
-   
+        
       
            
         }
