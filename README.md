@@ -3,6 +3,8 @@ Raymarching in Unity
 
 This repo contains experimetns that raymarch a volume in Unity. For more explanation, have alook at this post: https://medium.com/@shahriyarshahrabi/raymarching-in-unity-59c72664252a
 
+Added also support for shadow mapping casted by rasterized objects on the ray marched volumes. More here: https://medium.com/@shahriyarshahrabi/custom-shadow-mapping-in-unity-c42a81e1bbf8
+
 ![screenshot](https://i.imgur.com/jl0OTh8.gif)
 
 Known Issues
